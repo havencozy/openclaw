@@ -203,7 +203,7 @@ export function renderSessions(props: SessionsProps) {
         .map((row) => /^agent:([^:]+):/.exec(row.key)?.[1] ?? null)
         .filter((value): value is string => Boolean(value && value.trim())),
     ),
-  ).sort((a, b) => a.localeCompare(b));
+  ).toSorted((a, b) => a.localeCompare(b));
   const defaultAgentId = agentIds[0] ?? "main";
 
   const sortHeader = (
