@@ -1,3 +1,4 @@
+import { normalizeAgentId } from "../../../../src/routing/session-key.js";
 import { toNumber } from "../format.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type { SessionsListResult } from "../types.ts";
@@ -113,6 +114,67 @@ export async function patchSession(
   } catch (err) {
     state.sessionsError = String(err);
   }
+}
+
+export type CreateSessionInput = {
+  agentId: string;
+  label?: string | null;
+  model?: string | null;
+  thinkingLevel?: string | null;
+};
+
+function slugifySessionSegment(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
+function buildManualSessionKey(agentIdRaw: string, label?: string | null): string {
+  const agentId = normalizeAgentId(agentIdRaw);
+  const base = slugifySessionSegment(label ?? "") || "session";
+  const stamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 12);
+  return `agent:${agentId}:manual:${base}-${stamp}`;
+}
+
+export async function createSessionAndRefresh(
+  state: SessionsState,
+  input: CreateSessionInput,
+): Promise<string | null> {
+  if (!state.client || !state.connected) {
+    return null;
+  }
+  if (state.sessionsLoading) {
+    return null;
+  }
+  const label = input.label?.trim() ?? "";
+  const key = buildManualSessionKey(input.agentId, label);
+  state.sessionsLoading = true;
+  state.sessionsError = null;
+  try {
+    const patch: Record<string, unknown> = { key };
+    if (label) {
+      patch.label = label;
+    }
+    const model = input.model?.trim();
+    if (model) {
+      patch.model = model;
+    }
+    const thinkingLevel = input.thinkingLevel?.trim();
+    if (thinkingLevel) {
+      patch.thinkingLevel = thinkingLevel;
+    }
+    await state.client.request("sessions.patch", patch);
+  } catch (err) {
+    state.sessionsError = String(err);
+    return null;
+  } finally {
+    state.sessionsLoading = false;
+  }
+  await loadSessions(state);
+  return key;
 }
 
 export async function deleteSessionsAndRefresh(

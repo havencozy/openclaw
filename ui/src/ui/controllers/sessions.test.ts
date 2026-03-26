@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { deleteSessionsAndRefresh, subscribeSessions, type SessionsState } from "./sessions.ts";
+import {
+  createSessionAndRefresh,
+  deleteSessionsAndRefresh,
+  subscribeSessions,
+  type SessionsState,
+} from "./sessions.ts";
 
 type RequestFn = (method: string, params?: unknown) => Promise<unknown>;
 
@@ -39,6 +44,43 @@ describe("subscribeSessions", () => {
 
     expect(request).toHaveBeenCalledWith("sessions.subscribe", {});
     expect(state.sessionsError).toBeNull();
+  });
+});
+
+describe("createSessionAndRefresh", () => {
+  it("creates a manual session via sessions.patch and refreshes", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-25T03:13:45.000Z"));
+    const request = vi.fn(async (method: string) => {
+      if (method === "sessions.patch") {
+        return { ok: true };
+      }
+      if (method === "sessions.list") {
+        return undefined;
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState(request);
+
+    const key = await createSessionAndRefresh(state, {
+      agentId: "main",
+      label: "Debug gateway auth",
+      model: "openai/gpt-test-a",
+      thinkingLevel: "medium",
+    });
+
+    expect(key).toBe("agent:main:manual:debug-gateway-auth-202603250313");
+    expect(request).toHaveBeenNthCalledWith(1, "sessions.patch", {
+      key: "agent:main:manual:debug-gateway-auth-202603250313",
+      label: "Debug gateway auth",
+      model: "openai/gpt-test-a",
+      thinkingLevel: "medium",
+    });
+    expect(request).toHaveBeenNthCalledWith(2, "sessions.list", {
+      includeGlobal: true,
+      includeUnknown: true,
+    });
+    vi.useRealTimers();
   });
 });
 

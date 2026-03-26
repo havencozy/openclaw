@@ -78,7 +78,12 @@ import {
 import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
-import { deleteSessionsAndRefresh, loadSessions, patchSession } from "./controllers/sessions.ts";
+import {
+  createSessionAndRefresh,
+  deleteSessionsAndRefresh,
+  loadSessions,
+  patchSession,
+} from "./controllers/sessions.ts";
 import {
   installSkill,
   loadSkills,
@@ -775,6 +780,14 @@ export function renderApp(state: AppViewState) {
                     state.sessionsPage = 0;
                   },
                   onRefresh: () => loadSessions(state),
+                  onCreateSession: async (input) => {
+                    const createdKey = await createSessionAndRefresh(state, input);
+                    if (!createdKey) {
+                      return;
+                    }
+                    switchChatSession(state, createdKey);
+                    state.setTab("chat" as import("./navigation.ts").Tab);
+                  },
                   onPatch: (key, patch) => patchSession(state, key, patch),
                   onToggleSelect: (key) => {
                     const next = new Set(state.sessionsSelectedKeys);

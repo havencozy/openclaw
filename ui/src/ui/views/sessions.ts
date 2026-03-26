@@ -5,6 +5,13 @@ import { pathForTab } from "../navigation.ts";
 import { formatSessionTokens } from "../presenter.ts";
 import type { GatewaySessionRow, SessionsListResult } from "../types.ts";
 
+export type CreateSessionFormValue = {
+  agentId: string;
+  label: string;
+  model: string;
+  thinkingLevel: string;
+};
+
 export type SessionsProps = {
   loading: boolean;
   result: SessionsListResult | null;
@@ -31,6 +38,7 @@ export type SessionsProps = {
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   onRefresh: () => void;
+  onCreateSession: (input: CreateSessionFormValue) => void;
   onPatch: (
     key: string,
     patch: {
@@ -189,6 +197,14 @@ export function renderSessions(props: SessionsProps) {
   const totalPages = Math.max(1, Math.ceil(totalRows / props.pageSize));
   const page = Math.min(props.page, totalPages - 1);
   const paginated = paginateRows(sorted, page, props.pageSize);
+  const agentIds = Array.from(
+    new Set(
+      rawRows
+        .map((row) => /^agent:([^:]+):/.exec(row.key)?.[1] ?? null)
+        .filter((value): value is string => Boolean(value && value.trim())),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
+  const defaultAgentId = agentIds[0] ?? "main";
 
   const sortHeader = (
     col: "key" | "kind" | "updated" | "tokens",
@@ -212,15 +228,77 @@ export function renderSessions(props: SessionsProps) {
 
   return html`
     <section class="card">
-      <div class="row" style="justify-content: space-between; margin-bottom: 12px;">
+      <div class="row" style="justify-content: space-between; margin-bottom: 12px; gap: 12px; flex-wrap: wrap;">
         <div>
           <div class="card-title">Sessions</div>
           <div class="card-sub">${props.result ? `Store: ${props.result.path}` : "Active session keys and per-session overrides."}</div>
         </div>
-        <button class="btn" ?disabled=${props.loading} @click=${props.onRefresh}>
-          ${props.loading ? "Loading…" : "Refresh"}
-        </button>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="btn" ?disabled=${props.loading} @click=${props.onRefresh}>
+            ${props.loading ? "Loading…" : "Refresh"}
+          </button>
+        </div>
       </div>
+
+      <form
+        class="card"
+        style="margin-bottom: 12px; padding: 12px; display: grid; gap: 12px;"
+        @submit=${(e: SubmitEvent) => {
+          e.preventDefault();
+          const form = e.currentTarget as HTMLFormElement;
+          const formData = new FormData(form);
+          props.onCreateSession({
+            agentId: String(formData.get("agentId") ?? defaultAgentId),
+            label: String(formData.get("label") ?? ""),
+            model: String(formData.get("model") ?? ""),
+            thinkingLevel: String(formData.get("thinkingLevel") ?? ""),
+          });
+          form.reset();
+          const agentInput = form.elements.namedItem("agentId") as HTMLInputElement | null;
+          if (agentInput) {
+            agentInput.value = defaultAgentId;
+          }
+        }}
+      >
+        <div>
+          <div class="card-title" style="font-size: 14px;">Create session</div>
+          <div class="card-sub">Create a new manual session for an agent and jump into it.</div>
+        </div>
+        <div class="filters" style="margin-bottom: 0; gap: 12px; align-items: end; flex-wrap: wrap;">
+          <label class="field-inline">
+            <span>Agent</span>
+            <input
+              name="agentId"
+              list="sessions-agent-options"
+              .value=${defaultAgentId}
+              placeholder="main"
+              style="width: 120px;"
+            />
+          </label>
+          <label class="field-inline" style="min-width: 220px; flex: 1 1 220px;">
+            <span>Label</span>
+            <input name="label" placeholder="Debug gateway auth" />
+          </label>
+          <label class="field-inline" style="min-width: 180px; flex: 1 1 180px;">
+            <span>Model</span>
+            <input name="model" placeholder="optional" />
+          </label>
+          <label class="field-inline">
+            <span>Thinking</span>
+            <select name="thinkingLevel" style="min-width: 120px;">
+              ${THINK_LEVELS.map(
+                (level) => html`<option value=${level}>${level || "inherit"}</option>`,
+              )}
+            </select>
+          </label>
+          <button class="btn" type="submit" ?disabled=${props.loading}>
+            ${icons.plus} Create session
+          </button>
+        </div>
+        <datalist id="sessions-agent-options">
+          ${agentIds.map((agentId) => html`<option value=${agentId}></option> `)}
+        </datalist>
+      </form>
 
       <div class="filters" style="margin-bottom: 12px;">
         <label class="field-inline">
@@ -446,7 +524,9 @@ function renderRow(
   const displayName =
     typeof row.displayName === "string" && row.displayName.trim().length > 0
       ? row.displayName.trim()
-      : null;
+      : row.key.includes(":manual:")
+        ? "Manual session"
+        : null;
   const showDisplayName = Boolean(
     displayName &&
     displayName !== row.key &&

@@ -47,6 +47,7 @@ function buildProps(result: SessionsListResult): SessionsProps {
     onPageChange: () => undefined,
     onPageSizeChange: () => undefined,
     onRefresh: () => undefined,
+    onCreateSession: () => undefined,
     onPatch: () => undefined,
     onToggleSelect: () => undefined,
     onSelectPage: () => undefined,
@@ -74,7 +75,8 @@ describe("sessions view", () => {
     );
     await Promise.resolve();
 
-    const selects = container.querySelectorAll("select");
+    const row = container.querySelector("tbody tr");
+    const selects = row?.querySelectorAll("select") ?? [];
     const verbose = selects[2] as HTMLSelectElement | undefined;
     expect(verbose?.value).toBe("full");
     expect(Array.from(verbose?.options ?? []).some((option) => option.value === "full")).toBe(true);
@@ -97,7 +99,8 @@ describe("sessions view", () => {
     );
     await Promise.resolve();
 
-    const selects = container.querySelectorAll("select");
+    const row = container.querySelector("tbody tr");
+    const selects = row?.querySelectorAll("select") ?? [];
     const reasoning = selects[3] as HTMLSelectElement | undefined;
     expect(reasoning?.value).toBe("custom-mode");
     expect(
@@ -122,9 +125,51 @@ describe("sessions view", () => {
     );
     await Promise.resolve();
 
-    const selects = container.querySelectorAll("select");
+    const row = container.querySelector("tbody tr");
+    const selects = row?.querySelectorAll("select") ?? [];
     const fast = selects[1] as HTMLSelectElement | undefined;
     expect(fast?.value).toBe("on");
+  });
+
+  it("submits the create session form with entered values", async () => {
+    const container = document.createElement("div");
+    const onCreateSession = vi.fn();
+    render(
+      renderSessions({
+        ...buildProps(
+          buildMultiResult([
+            {
+              key: "agent:main:main",
+              kind: "direct",
+              updatedAt: 20,
+            },
+          ]),
+        ),
+        onCreateSession,
+      }),
+      container,
+    );
+    await Promise.resolve();
+
+    const form = container.querySelector("form");
+    const labelInput = container.querySelector<HTMLInputElement>('input[name="label"]');
+    const modelInput = container.querySelector<HTMLInputElement>('input[name="model"]');
+    const thinkingSelect = container.querySelector<HTMLSelectElement>('select[name="thinkingLevel"]');
+    labelInput!.value = "Debug gateway auth";
+    labelInput!.dispatchEvent(new Event("input", { bubbles: true }));
+    modelInput!.value = "openai/gpt-test-a";
+    modelInput!.dispatchEvent(new Event("input", { bubbles: true }));
+    thinkingSelect!.value = "medium";
+    thinkingSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+
+    form?.dispatchEvent(new SubmitEvent("submit", { bubbles: true, cancelable: true }));
+
+    expect(onCreateSession).toHaveBeenCalledWith({
+      agentId: "main",
+      label: "Debug gateway auth",
+      model: "openai/gpt-test-a",
+      thinkingLevel: "medium",
+    });
   });
 
   it("deselects only the current page from the header checkbox", async () => {

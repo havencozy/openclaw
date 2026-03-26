@@ -317,12 +317,6 @@ export async function spawnSubagentDirect(
     requestedMode: params.mode,
     threadRequested: requestThreadBinding,
   });
-  if (spawnMode === "session" && !requestThreadBinding) {
-    return {
-      status: "error",
-      error: 'mode="session" requires thread=true so the subagent can stay bound to a thread.',
-    };
-  }
   const cleanup =
     spawnMode === "session"
       ? "keep"

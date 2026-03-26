@@ -81,7 +81,7 @@ export function createSessionsSpawnTool(
     label: "Sessions",
     name: "sessions_spawn",
     description:
-      'Spawn an isolated session (runtime="subagent" or runtime="acp"). mode="run" is one-shot and mode="session" is persistent/thread-bound. Subagents inherit the parent workspace directory automatically.',
+      'Spawn an isolated session (runtime="subagent" or runtime="acp"). mode="run" is one-shot and mode="session" is persistent. When thread=true and supported by the channel, the session is thread-bound. Subagents inherit the parent workspace directory automatically.',
     parameters: SessionsSpawnToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;

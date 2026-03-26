@@ -301,7 +301,7 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
     expectThreadBindFailureCleanup(details, /unable to create or bind a thread/i);
   });
 
-  it("rejects mode=session when thread=true is not requested", async () => {
+  it("accepts mode=session without thread binding", async () => {
     const tool = await getSessionsSpawnTool({
       agentSessionKey: "main",
       agentChannel: "discord",
@@ -313,11 +313,18 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
       mode: "session",
     });
 
-    expectErrorResultMessage(result, /requires thread=true/i);
+    expect(result.details).toMatchObject({ status: "accepted", mode: "session" });
     expect(hookRunnerMocks.runSubagentSpawning).not.toHaveBeenCalled();
-    expect(hookRunnerMocks.runSubagentSpawned).not.toHaveBeenCalled();
+    expect(hookRunnerMocks.runSubagentSpawned).toHaveBeenCalledTimes(1);
+    const [spawnedEvent] = (hookRunnerMocks.runSubagentSpawned.mock.calls[0] ?? []) as unknown as [
+      Record<string, unknown>,
+    ];
+    expect(spawnedEvent).toMatchObject({
+      threadRequested: false,
+      mode: "session",
+    });
     const callGatewayMock = getCallGatewayMock();
-    expect(callGatewayMock).not.toHaveBeenCalled();
+    expect(callGatewayMock).toHaveBeenCalled();
   });
 
   it("rejects thread=true on channels without thread support", async () => {
